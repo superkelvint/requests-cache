@@ -20,7 +20,7 @@ A Nim HTTP caching library inspired by Python's [requests-cache](https://request
 ### Via Nimble
 
 ```bash
-nimble install requests_cache
+nimble install https://github.com/superkelvint/requests_cache
 ```
 
 ### Manual
