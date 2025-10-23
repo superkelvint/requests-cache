@@ -1,4 +1,4 @@
-version       = "0.1.0"
+version       = "0.2.0"
 author        = "Kelvin Tan"
 description   = "A Nim HTTP caching library inspired by Python's requests-cache"
 license       = "MIT"
@@ -9,6 +9,7 @@ skipDirs      = @["tests"]
 
 requires "nim >= 2.2.0"
 requires "db_connector"
+requires "malebolgia >= 1.3.0"
 
 # Tasks
 

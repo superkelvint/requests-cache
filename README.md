@@ -1,27 +1,42 @@
 # requests_cache
 
+
+
 A Nim HTTP caching library inspired by Python's [requests-cache](https://requests-cache.readthedocs.io/).
 
-**requests_cache** provides intelligent caching for HTTP requests with support for expiration, cookie management, cache statistics, and flexible filtering policies.
+**requests_cache** provides intelligent caching for HTTP requests. It offers two session types: a simple **`SingleThreadedSession`** for easy, everyday use, and a high-performance, thread-safe **`CachedSession`** for advanced concurrent applications.
+
+
 
 ## Features
 
-- **Persistent Caching**: Responses cached in SQLite database
-- **Configurable Expiration**: Set custom TTLs for cached responses
-- **Smart Filtering**: URL filters and status code allowlists
-- **Cookie Management**: Automatic cookie persistence and sending
-- **Stale-If-Error**: Fallback to stale responses on request failures
-- **Cache Statistics**: Track hits, misses, and cache size
-- **Context Managers**: Temporarily enable/disable caching
-- **Cache Inspection**: Query and analyze cached entries
+
+
+- **Thread-Safe by Design**: Choose between a simple, self-locking wrapper (`SingleThreadedSession`) or a manually-locked core (`CachedSession`) for maximum performance.
+- **Persistent Caching**: Responses cached in a SQLite database.
+- **Configurable Expiration**: Set custom TTLs for cached responses.
+- **Smart Filtering**: URL filters and status code allowlists.
+- **Cookie Management**: Automatic cookie persistence and sending.
+- **Stale-If-Error**: Fallback to stale responses on request failures.
+- **Cache Statistics**: Track hits, misses, and cache size.
+- **Context Managers**: Temporarily enable/disable caching.
+- **Cache Inspection**: Query and analyze cached entries.
+
+
 
 ## Installation
+
+
+
+
 
 ### Via Nimble
 
 ```bash
 nimble install https://github.com/superkelvint/requests_cache
 ```
+
+
 
 ### Manual
 
@@ -33,31 +48,47 @@ cd requests_cache
 nimble install
 ```
 
+
+
 ## Quick Start
+
+The easiest way to get started is with `SingleThreadedSession`. It manages its own lock, so you don't have to worry about thread safety.
+
 
 ```nim
 import requests_cache
 
-# Create a new cached session
-var session = newCachedSession(
+# 1. Use the simple, single-threaded session
+var session = newSingleThreadedSession(
   dbPath = "cache.db",
   expireAfter = 3600  # Cache for 1 hour
 )
 
-# Make a GET request (cached automatically)
+# 2. Make requests (no locks needed)
 let response = session.get("https://api.example.com/data")
 echo response
 
-# Check cache statistics
+# 3. Check stats (no locks needed)
 let stats = session.cacheStats()
 echo "Hits: ", stats.hits, " Misses: ", stats.misses
 ```
 
-## Usage Guide
+
+
+## Usage Guide (SingleThreadedSession)
+
+
+
+All examples below use the recommended `SingleThreadedSession`.
+
+
 
 ### Basic Requests
 
+
 ```nim
+var session = newSingleThreadedSession()
+
 # GET request
 let data = session.get("https://api.example.com/users")
 
@@ -65,7 +96,7 @@ let data = session.get("https://api.example.com/users")
 let params = {"user_id": "123", "limit": "10"}.toTable
 let filtered = session.get("https://api.example.com/users", params = params)
 
-# POST request (enable in settings)
+# POST request (must be enabled in settings)
 session.settings.allowableMethods.incl("POST")
 let created = session.post("https://api.example.com/users", data = """{"name": "Alice"}""")
 
@@ -73,12 +104,17 @@ let created = session.post("https://api.example.com/users", data = """{"name": "
 let headers = session.head("https://api.example.com/check")
 ```
 
+
+
 ### Configuration
+
+You can configure the session on creation or by modifying the `.settings` object.
+
 
 ```nim
 import std/sets
 
-var session = newCachedSession(
+var session = newSingleThreadedSession(
   dbPath = "my_cache.db",
   expireAfter = 7200,                              # Cache for 2 hours
   allowableMethods = toHashSet(["GET", "HEAD"]),   # Only cache these methods
@@ -86,14 +122,21 @@ var session = newCachedSession(
   staleIfError = true                              # Return stale data on network errors
 )
 
-# Add a URL filter
+# Add a URL filter after creation
 session.settings.urlFilter = proc(url: string): bool =
   not url.contains("private")  # Don't cache URLs containing "private"
 ```
 
+
+
 ### Cookie Management
 
+Cookies are automatically loaded on creation and persisted after requests.
+
+
 ```nim
+var session = newSingleThreadedSession()
+
 # Set a cookie
 session.setCookie("user_session", "abc123xyz")
 
@@ -105,17 +148,23 @@ if token.isSome:
 # Clear all cookies
 session.clearCookies()
 
-# Cookies are automatically persisted and loaded on session creation
+# A new session will automatically load persisted cookies
+var session2 = newSingleThreadedSession()
+echo session2.getCookie("user_session").get() # "abc123xyz"
 ```
+
+
 
 ### Cache Control
 
 ```nim
+var session = newSingleThreadedSession()
+
 # Temporarily disable caching
 session.cacheDisabled:
   let freshData = session.get("https://api.example.com/status")
 
-# Temporarily enable caching (when globally disabled)
+# Temporarily enable caching (if you've set session.session.cacheEnabled = false)
 session.cacheEnabled:
   let cached = session.get("https://api.example.com/data")
 
@@ -130,6 +179,9 @@ echo "Removed ", removed, " expired entries"
 ### Cache Inspection
 
 ```nim
+var session = newSingleThreadedSession()
+# ... make some requests ...
+
 # Get all cached URLs
 let urls = session.getCachedUrls()
 for url in urls:
@@ -154,56 +206,142 @@ echo "Hits: ", stats.hits
 echo "Misses: ", stats.misses
 ```
 
+
+## Multi-Threading / Advanced Usage
+
+For high-performance applications where you need to share **one session** across **multiple threads**, you must use the core `CachedSession` type.
+
+This type is more complex because it requires you to **manually create and pass a lock** to *every* procedure. This manual control is what allows it to be safely shared.
+
+
+```nim
+import httpclient
+import malebolgia
+import malebolgia/ticketlocks
+import requests_cache
+import std/sets
+
+proc fetchUrl(url: string; session: ptr CachedSession; lock: ptr TicketLock) {.gcsafe.} =
+  {.cast(gcsafe).}:
+    try:
+      echo "Fetching: ", url
+      let response = session[].get(url, lock)
+      echo "  > Got: ", response.len, " bytes"
+    except Exception as e:
+      echo "Request failed: ", e.msg
+
+proc main() =
+  var session = newCachedSession(
+    dbPath = "cache.db",
+    expireAfter = 3600,
+  )
+  var lock = ticketlocks.initTicketLock() 
+
+  session.loadCookies(addr lock)
+
+  let urls = [
+    "https://httpbin.org/delay/1",
+    "https://httpbin.org/delay/1",
+    "https://httpbin.org/delay/1",
+  ]
+
+  var m = malebolgia.createMaster()
+
+  echo "--- Spawning 100 tasks... ---"
+  m.awaitAll:
+    for i in 0..<100:
+      let url = urls[i mod urls.len]
+      m.spawn fetchUrl(url, addr session, addr lock)
+  echo "--- All tasks complete. ---"
+
+  let stats = session.cacheStats(addr lock)
+  echo "\n=== CACHE STATISTICS ==="
+  echo "Total requests spawned: 100"
+  echo "Cache hits: ", stats.hits, " (served from cache)"
+  echo "Cache misses: ", stats.misses, " (fetched from server)"
+  echo "Cache size: ", stats.size, " (unique URLs cached)"
+
+main()
+```
+
+**Rule of thumb:** Use `SingleThreadedSession` unless you have a specific reason to share one session instance across many threads.
+
+
+
 ## API Reference
 
-### Session Management
+This library provides two main session objects.
 
-- `newCachedSession()`: Create a new cached session
-- `getCookie()`: Get a cookie by name
-- `setCookie()`: Set a cookie
-- `loadCookies()`: Load cookies from database
-- `saveCookies()`: Persist cookies to database
-- `clearCookies()`: Clear all cookies
 
-### HTTP Methods
 
-- `get()`: Perform a cached GET request
-- `post()`: Perform a cached POST request
-- `head()`: Perform a cached HEAD request
-- `request()`: Core request function (used by above methods)
+### 1. `SingleThreadedSession` (Recommended)
 
-### Cache Management
+The simple, self-locking wrapper. It owns its own lock.
 
-- `clearCache()`: Delete all cache entries
-- `clearExpired()`: Remove only expired entries
-- `cacheSize()`: Get total number of cached entries
-- `cacheStats()`: Get hits, misses, and size
+- `newSingleThreadedSession()`: Creates a new session.
+- `session.get(url)`
+- `session.post(url, data)`
+- `session.cacheStats()`
+- `session.clearCache()`
+- ...and so on for all other methods.
 
-### Cache Inspection
 
-- `getCachedUrls()`: List all cached URLs
-- `getCacheEntry()`: Get details for a specific entry
-- `searchCache()`: Find entries matching a URL pattern
 
-### Context Managers
+### 2. `CachedSession` (Multi-Threaded / Core)
 
-- `cacheDisabled`: Temporarily disable caching
-- `cacheEnabled`: Temporarily enable caching
+The high-performance core type. It requires an external `TicketLock` to be passed to **every** call.
+
+- `newCachedSession()`: Creates the core session.
+- `session.get(url, addr myLock)`
+- `session.post(url, addr myLock, data)`
+- `session.cacheStats(addr myLock)`
+- `session.clearCache(addr myLock)`
+- ...and so on for all other methods.
+
+
+
+### Shared API
+
+Both session types provide the same set of methods. The only difference is the `lock` parameter.
+
+- **HTTP Methods**: `get`, `post`, `head`, `request`
+- **Cookie Management**: `getCookie`, `setCookie`, `clearCookies`, `loadCookies`
+- **Cache Management**: `clearCache`, `clearExpired`, `cacheSize`, `cacheStats`
+- **Cache Inspection**: `getCachedUrls`, `getCacheEntry`, `searchCache`
+- **Context Managers**: `cacheDisabled`, `cacheEnabled`
+
+
 
 ## Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| expireAfter | int | 3600 | Cache TTL in seconds |
-| allowableMethods | HashSet[string] | ["GET", "HEAD"] | HTTP methods to cache |
-| allowableStatusCodes | HashSet[int] | [200] | Status codes to cache |
-| staleIfError | bool | false | Return stale data on errors |
-| urlFilter | proc | nil | Custom function to filter URLs |
+
+The `CacheSettings` object (accessed via `session.settings`) is the same for both session types.
+
+| **Option**             | **Type**          | **Default**       | **Description**                |
+| ---------------------- | ----------------- | ----------------- | ------------------------------ |
+| expireAfter          | int             | 3600            | Cache TTL in seconds           |
+| allowableMethods     | HashSet[string] | ["GET", "HEAD"] | HTTP methods to cache          |
+| allowableStatusCodes | HashSet[int]    | [200]           | Status codes to cache          |
+| staleIfError         | bool            | false           | Return stale data on errors    |
+| urlFilter            | proc            | nil             | Custom function to filter URLs |
+
+
+
+## Performance Considerations
+
+- **`SingleThreadedSession` vs. `CachedSession`**:
+  - The **`SingleThreadedSession`** is the recommended choice for most applications, including simple scripts and web servers where each thread can manage its own session. It is safe and easy.
+  - The **`CachedSession`** is designed for high-concurrency scenarios where you need **multiple threads to share a single cache connection**. By managing the lock externally, you have finer-grained control, but it is more complex to use correctly.
+- **Database**: SQLite provides fast lookups with indexed queries. Cache entries are indexed by URL and method.
+- **Maintenance**: Expired entries are not deleted automatically. You should periodically call `session.clearExpired()` to clean the database.
+
+
 
 ## Requirements
 
-- Nim >= 2.2.x
-- SQLite support (via `db_connector`)
+- Nim >= 2.0.x
+- `db_connector` (for SQLite)
+- `malebolgia` (for locking)
 
 ## Testing
 
@@ -223,15 +361,8 @@ Tests cover:
 - Context managers
 - Cache inspection and management
 
-## Performance Considerations
-
-- SQLite provides fast lookups with indexed queries
-- Cache entries are indexed by URL and method
-- Expired entries should be periodically cleared via `clearExpired()`
-- For high-traffic scenarios, consider adjusting `expireAfter` based on data freshness needs
 
 ## License
-
 MIT
 
 ## Contributing

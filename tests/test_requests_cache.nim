@@ -16,11 +16,11 @@ const TestDb = "test_cache.db"
 proc setupSession(expireAfter: int = 60,
                   allowableMethods: HashSet[string] = toHashSet(["GET", "HEAD"]),
                   allowableStatusCodes: HashSet[int] = toHashSet([200]),
-                  staleIfError: bool = false): CachedSession =
+                  staleIfError: bool = false): SingleThreadedSession =
   if fileExists(TestDb):
     removeFile(TestDb)
 
-  return newCachedSession(
+  return newSingleThreadedSession(
     dbPath = TestDb,
     expireAfter = expireAfter,
     allowableMethods = allowableMethods,
@@ -56,10 +56,10 @@ suite "requests_cache.nim":
 
   test "Initialization and Settings":
     var s = setupSession(expireAfter = 1234)
-    check s.dbPath == TestDb
+    check s.session.dbPath == TestDb
     check s.settings.expireAfter == 1234
     check s.settings.allowableMethods == toHashSet(["GET", "HEAD"])
-    check s.cacheEnabled == true
+    check s.session.cacheEnabled == true
     check s.cacheSize() == 0
     check s.cacheStats() == (hits: 0, misses: 0, size: 0)
 
@@ -71,14 +71,14 @@ suite "requests_cache.nim":
     check s.getCookie("user") == some("gemini")
     check s.getCookie("missing") == none[string]()
     
-    var s2 = newCachedSession(dbPath = TestDb)
+    var s2 = newSingleThreadedSession(dbPath = TestDb)
     check s2.getCookie("user") == some("gemini")
     
     s2.clearCookies()
     check s2.getCookie("user") == none[string]()
-    check s2.cookies.len == 0
+    check s2.session.cookies.len == 0
     
-    var s3 = newCachedSession(dbPath = TestDb)
+    var s3 = newSingleThreadedSession(dbPath = TestDb)
     check s3.getCookie("user") == none[string]()
 
 
@@ -94,14 +94,14 @@ suite "requests_cache.nim":
     check s.getCookie("user") == some("alice")
     check s.getCookie("session_id") == some("12345")
     check s.getCookie("preferences") == some("dark_mode")
-    check s.cookies.len == 3
+    check s.session.cookies.len == 3
     
     # Create new session to verify persistence from database
-    var s2 = newCachedSession(dbPath = TestDb)
+    var s2 = newSingleThreadedSession(dbPath = TestDb)
     check s2.getCookie("user") == some("alice")
     check s2.getCookie("session_id") == some("12345")
     check s2.getCookie("preferences") == some("dark_mode")
-    check s2.cookies.len == 3
+    check s2.session.cookies.len == 3
 
 
   test "Core Request: Cache Miss and Hit":
@@ -253,22 +253,22 @@ suite "requests_cache.nim":
 
 
   test "Context Manager: cacheDisabled":
-    var s = setupSession()
+    var session = setupSession()
     let url = "https://httpbin.org/get?ctx=disable"
     
-    discard s.get(url)
-    check s.cacheStats() == (hits: 0, misses: 1, size: 1)
+    discard session.get(url)
+    check session.cacheStats() == (hits: 0, misses: 1, size: 1)
     
-    s.cacheDisabled:
-      discard s.get(url)
+    session.cacheDisabled:
+      discard session.get(url)
     
-    check s.cacheEnabled == true
+    check session.session.cacheEnabled == true
     # Inside cacheDisabled block, cache is off, so no stats recorded
-    check s.cacheStats() == (hits: 0, misses: 1, size: 1)
+    check session.cacheStats() == (hits: 0, misses: 1, size: 1)
     
-    discard s.get(url)
+    discard session.get(url)
     # Cache hit
-    check s.cacheStats() == (hits: 1, misses: 1, size: 1)
+    check session.cacheStats() == (hits: 1, misses: 1, size: 1)
 
 
   test "Context Manager: cacheEnabled":
@@ -278,16 +278,16 @@ suite "requests_cache.nim":
     discard s.get(url)
     check s.cacheStats() == (hits: 0, misses: 1, size: 1)
     
-    s.cacheEnabled = false
+    s.session.cacheEnabled = false
     discard s.get(url)
     # Cache disabled, so no stats recorded
     check s.cacheStats() == (hits: 0, misses: 1, size: 1)
     
-    s.cacheEnabled:
+    s.cacheEnabled():
       discard s.get(url)
       
     # After cacheEnabled block, cache is off again
-    check s.cacheEnabled == false
+    check s.session.cacheEnabled == false
     # Inside the block, cache was on, so we got a hit
     check s.cacheStats() == (hits: 1, misses: 1, size: 1)
 
