@@ -28,7 +28,7 @@ nimble install requests_cache
 Clone this repository and add it to your Nim path:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/requests_cache.git
+git clone https://github.com/superkelvint/requests_cache.git
 cd requests_cache
 nimble install
 ```
@@ -192,14 +192,13 @@ echo "Misses: ", stats.misses
 
 ## Configuration Options
 
-```
-OptionTypeDefaultDescription
-expireAfterint3600Cache TTL in seconds
-allowableMethodsHashSet[string]["GET", "HEAD"]HTTP methods to cache
-allowableStatusCodesHashSet[int][200]Status codes to cache
-staleIfErrorboolfalseReturn stale data on errors
-urlFilterprocnilCustom function to filter URLs
-```
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `expireAfter` | `int` | `3600` | Cache TTL in seconds |
+| `allowableMethods` | `HashSet[string]` | `["GET", "HEAD"]` | HTTP methods to cache |
+| `allowableStatusCodes` | `HashSet[int]` | `[200]` | Status codes to cache |
+| `staleIfError` | `bool` | `false` | Return stale data on errors |
+| `urlFilter` | `proc` | `nil` | Custom function to filter URLs |
 
 ## Requirements
 
