@@ -194,11 +194,11 @@ echo "Misses: ", stats.misses
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `expireAfter` | `int` | `3600` | Cache TTL in seconds |
-| `allowableMethods` | `HashSet[string]` | `["GET", "HEAD"]` | HTTP methods to cache |
-| `allowableStatusCodes` | `HashSet[int]` | `[200]` | Status codes to cache |
-| `staleIfError` | `bool` | `false` | Return stale data on errors |
-| `urlFilter` | `proc` | `nil` | Custom function to filter URLs |
+| expireAfter | int | 3600 | Cache TTL in seconds |
+| allowableMethods | HashSet[string] | ["GET", "HEAD"] | HTTP methods to cache |
+| allowableStatusCodes | HashSet[int] | [200] | Status codes to cache |
+| staleIfError | bool | false | Return stale data on errors |
+| urlFilter | proc | nil | Custom function to filter URLs |
 
 ## Requirements
 
