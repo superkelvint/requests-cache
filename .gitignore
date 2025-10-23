@@ -1,0 +1,28 @@
+# Nim compilation
+*.o
+*.a
+*.so
+*.dylib
+*.nim.c
+nimcache/
+nimblecache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Databases
+*.db
+test_cache.db
+example_cache.db
+
+# Python
+__pycache__/
+*.pyc
