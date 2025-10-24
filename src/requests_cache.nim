@@ -522,7 +522,7 @@ when isMainModule:
   echo "  > Size: ", stats.size
   
   echo "\n--- Context Manager (cacheDisabled) ---"
-  session.singleThreadedCacheDisabled():
+  session.cacheDisabled():
     echo "  > Making request with cache disabled..."
     let freshData = session.get(url)
 
