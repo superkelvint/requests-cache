@@ -1,7 +1,5 @@
 # requests_cache
 
-
-
 A Nim HTTP caching library inspired by Python's [requests-cache](https://requests-cache.readthedocs.io/).
 
 **requests_cache** provides intelligent caching for HTTP requests. It offers two session types: a simple **`SingleThreadedSession`** for easy, everyday use, and a high-performance, thread-safe **`CachedSession`** for advanced concurrent applications.
@@ -9,7 +7,6 @@ A Nim HTTP caching library inspired by Python's [requests-cache](https://request
 
 
 ## Features
-
 
 
 - **Thread-Safe by Design**: Choose between a simple, self-locking wrapper (`SingleThreadedSession`) or a manually-locked core (`CachedSession`) for maximum performance.
@@ -28,14 +25,11 @@ A Nim HTTP caching library inspired by Python's [requests-cache](https://request
 
 
 
-
-
 ### Via Nimble
 
 ```bash
-nimble install https://github.com/superkelvint/requests_cache
+nimble install https://github.com/superkelvint/requests-cache
 ```
-
 
 
 ### Manual
@@ -43,11 +37,10 @@ nimble install https://github.com/superkelvint/requests_cache
 Clone this repository and add it to your Nim path:
 
 ```bash
-git clone https://github.com/superkelvint/requests_cache.git
-cd requests_cache
+git clone https://github.com/superkelvint/requests-cache.git
+cd requests-cache
 nimble install
 ```
-
 
 
 ## Quick Start
